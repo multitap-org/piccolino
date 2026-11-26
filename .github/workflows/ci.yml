@@ -60,7 +60,9 @@ jobs:
       - name: Build net_probe
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          cmake -S piccolo -B piccolo/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMULTITAP_BUILD_TESTS=OFF
+          # SDL_UNIX_CONSOLE_BUILD: no X11 / Wayland needed (net_probe opens no window).
+          cmake -S piccolo -B piccolo/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMULTITAP_BUILD_TESTS=OFF \
+            -DSDL_UNIX_CONSOLE_BUILD=ON
           cmake --build piccolo/build --target net_probe
           cp piccolo/build/deps/common/frontends-common/net_probe net_probe
 
