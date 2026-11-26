@@ -187,6 +187,9 @@ int main(int argc, char** argv)
     {
         std::signal(SIGINT, on_signal);
         std::signal(SIGTERM, on_signal);
+#if defined(_WIN32)
+        std::signal(SIGBREAK, on_signal);   // Ctrl+Break, and what a console's parent sends to stop it
+#endif
         std::printf("piccolino %s: \"%s\" listening on UDP port %u, data in %s\n", PICCOLINO_VERSION,
                     config.name.c_str(), static_cast<unsigned>(piccolino_server_port(server)), data_dir.c_str());
         std::fflush(stdout);

@@ -71,15 +71,23 @@ multitap_set_project_flags(piccolino)
 if(MULTITAP_BUILD_TESTS)
     set(PICCOLINO_TEST_FAIL "FAIL|ERROR: AddressSanitizer|ERROR: LeakSanitizer|runtime error:")
 
+    # A test's scratch folder, emptied before it runs (a fixture).
+    function(piccolino_scratch test folder)
+        add_test(NAME ${test}_clean COMMAND ${CMAKE_COMMAND} -E rm -rf "${folder}")
+        set_tests_properties(${test}_clean PROPERTIES FIXTURES_SETUP ${test}_scratch)
+        set_tests_properties(${test} PROPERTIES FIXTURES_REQUIRED ${test}_scratch)
+    endfunction()
+
     # piccolino.cfg: defaults, first run, reading back, bad values.
     add_executable(piccolino_config_test tests/piccolino_config_test.cpp)
     target_link_libraries(piccolino_config_test PRIVATE piccolino_core)
     multitap_set_project_flags(piccolino_config_test)
     add_test(NAME piccolino_config
-             COMMAND piccolino_config_test "${CMAKE_CURRENT_BINARY_DIR}/piccolino_config_test")
+             COMMAND piccolino_config_test "${CMAKE_CURRENT_BINARY_DIR}/scratch/config")
     set_tests_properties(piccolino_config PROPERTIES
                          PASS_REGULAR_EXPRESSION "piccolino config: all checks passed"
                          FAIL_REGULAR_EXPRESSION "${PICCOLINO_TEST_FAIL}")
+    piccolino_scratch(piccolino_config "${CMAKE_CURRENT_BINARY_DIR}/scratch/config")
 
     # Which source addresses count as the LAN (pairing is answered only from them).
     add_executable(piccolino_lan_test tests/piccolino_lan_test.cpp)
@@ -97,11 +105,12 @@ if(MULTITAP_BUILD_TESTS)
     target_link_libraries(piccolino_server_test PRIVATE piccolino_core)
     multitap_set_project_flags(piccolino_server_test)
     add_test(NAME piccolino_server
-             COMMAND piccolino_server_test "${CMAKE_CURRENT_BINARY_DIR}/piccolino_server_test")
+             COMMAND piccolino_server_test "${CMAKE_CURRENT_BINARY_DIR}/scratch/server")
     set_tests_properties(piccolino_server PROPERTIES
                          PASS_REGULAR_EXPRESSION "piccolino server: all checks passed"
                          FAIL_REGULAR_EXPRESSION "${PICCOLINO_TEST_FAIL}"
                          TIMEOUT 120)
+    piccolino_scratch(piccolino_server "${CMAKE_CURRENT_BINARY_DIR}/scratch/server")
 
     # End to end: the piccolino binary, net_probe as the client (pairs with
     # the code piccolino prints, then copies files both ways).
@@ -109,10 +118,11 @@ if(MULTITAP_BUILD_TESTS)
         find_package(Python3 REQUIRED COMPONENTS Interpreter)
         add_test(NAME piccolino_e2e
                  COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/tests/e2e_net_probe.py"
-                         $<TARGET_FILE:piccolino> "${PICCOLINO_NET_PROBE}" "${CMAKE_CURRENT_BINARY_DIR}/e2e")
+                         $<TARGET_FILE:piccolino> "${PICCOLINO_NET_PROBE}" "${CMAKE_CURRENT_BINARY_DIR}/scratch/e2e")
         set_tests_properties(piccolino_e2e PROPERTIES
                              PASS_REGULAR_EXPRESSION "piccolino e2e: all checks passed"
                              FAIL_REGULAR_EXPRESSION "${PICCOLINO_TEST_FAIL}"
                              TIMEOUT 300)
+        piccolino_scratch(piccolino_e2e "${CMAKE_CURRENT_BINARY_DIR}/scratch/e2e")
     endif()
 endif()
