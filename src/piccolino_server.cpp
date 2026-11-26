@@ -296,6 +296,14 @@ bool piccolino_server_create(PiccolinoServer* server, const PiccolinoConfig* con
     server->out.resize(NET_LINK_MAX_PAYLOAD);
     std::string identity_path = server->data_dir + "/" + PICCOLINO_IDENTITY_FILE;
     std::string devices_path = server->data_dir + "/" + PICCOLINO_DEVICES_FILE;
+    // multitap-net leaves ENet's global setup to the program (Windows
+    // needs WSAStartup before any socket).
+    if (!net_init())
+    {
+        host_log(LogLevel::error, "The network can't start");
+        return false;
+    }
+    server->net_started = true;
     NetKeypair identity;
     if (!net_identity_load_or_create(identity_path.c_str(), &identity))
     {
@@ -338,6 +346,11 @@ void piccolino_server_destroy(PiccolinoServer* server)
     {
         net_access_destroy(&server->access);
         server->access_created = false;
+    }
+    if (server->net_started)
+    {
+        net_shutdown();
+        server->net_started = false;
     }
     server->requests.clear();
 }

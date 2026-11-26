@@ -49,6 +49,7 @@ struct PiccolinoServer
 {
     NetAccess    access;
     NetShareHost share;
+    bool         net_started = false;     // net_init() (WSAStartup on Windows), undone in destroy
     bool         access_created = false;
     bool         share_started = false;
     std::string  data_dir;
