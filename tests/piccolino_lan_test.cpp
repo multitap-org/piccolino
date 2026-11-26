@@ -28,6 +28,12 @@ static void check_address(const char* text, bool lan)
 
 int main()
 {
+    // Address parsing needs the network set up (WSAStartup on Windows).
+    if (!net_init())
+    {
+        std::printf("FAIL net_init\n");
+        return 1;
+    }
     check_address("10.0.0.1", true);
     check_address("10.255.255.255", true);
     check_address("11.0.0.1", false);
@@ -56,6 +62,7 @@ int main()
     check_address("::", false);
     check_address("::ffff:8.8.8.8", false);
     check_address("::ffff:192.168.0.2", true);
+    net_shutdown();
     if (g_failures == 0)
     {
         std::printf("piccolino lan: all checks passed\n");
