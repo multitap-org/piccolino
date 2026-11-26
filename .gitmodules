@@ -1,0 +1,15 @@
+[submodule "deps/common/hosts-common"]
+	path = deps/common/hosts-common
+	url = https://github.com/multitap-org/hosts-common.git
+[submodule "deps/common/multitap-net"]
+	path = deps/common/multitap-net
+	url = https://github.com/multitap-org/multitap-net.git
+[submodule "deps/enet"]
+	path = deps/enet
+	url = https://github.com/zpl-c/enet.git
+[submodule "deps/monocypher"]
+	path = deps/monocypher
+	url = https://github.com/LoupVaillant/Monocypher.git
+[submodule "deps/beacon"]
+	path = deps/beacon
+	url = https://github.com/multitap-org/multitap-beacon.git
