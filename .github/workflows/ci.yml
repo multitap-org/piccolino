@@ -1,0 +1,140 @@
+# Builds piccolino and runs its tests:
+#   Linux:   warnings as errors, a Debug build and an ASan + UBSan one, each
+#            with the end-to-end test (net_probe as the client).
+#   Windows: MSYS2 UCRT64 (GCC + the Universal CRT), as piccolo builds it;
+#            the unit tests and the in-process server test.
+# net_probe is frontends-common's tool and needs SDL, ImGui and Vulkan,
+# which piccolino doesn't link: it's built from piccolo at PICCOLO_REF (the
+# commit whose multitap-net matches deps/common/multitap-net here) and cached.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PICCOLO_REF: 5a3f3271d03508783712d327aa1d0e3f48b0e44e
+
+jobs:
+  # piccolino is headless: no SDL, ImGui or Vulkan in our files.
+  no-gui:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: No SDL, ImGui or Vulkan
+        run: |
+          if git grep -nIiE '#include *[<"](SDL|imgui|vulkan)' -- ':!deps'; then
+            echo "piccolino's headless core must not include GUI headers"
+            exit 1
+          fi
+
+  net-probe:
+    name: net_probe (from piccolo)
+    runs-on: ubuntu-24.04
+    steps:
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: net_probe
+          key: net-probe-${{ env.PICCOLO_REF }}-v1
+
+      - name: Packages
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libvulkan-dev
+
+      - name: piccolo
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git init -q piccolo
+          git -C piccolo remote add origin https://github.com/multitap-org/piccolo.git
+          git -C piccolo fetch -q --depth 1 origin "$PICCOLO_REF"
+          git -C piccolo checkout -q FETCH_HEAD
+          git -C piccolo submodule update --init --checkout --depth 1 \
+            deps/SDL deps/imgui deps/libretro-common deps/libsamplerate deps/gamemode deps/miniz deps/7zip \
+            deps/qrcodegen deps/enet deps/monocypher deps/beacon \
+            deps/common/hosts-common deps/common/multitap-net deps/common/frontends-common deps/common/retroui \
+            deps/libretro/host-libretro deps/libretro/frontend-libretro
+
+      - name: Build net_probe
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S piccolo -B piccolo/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMULTITAP_BUILD_TESTS=OFF
+          cmake --build piccolo/build --target net_probe
+          cp piccolo/build/deps/common/frontends-common/net_probe net_probe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: net_probe
+          path: net_probe
+
+  linux:
+    name: Linux (${{ matrix.name }})
+    needs: net-probe
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debug
+            sanitize: OFF
+          - name: ASan
+            sanitize: ON
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: net_probe
+          path: tools
+
+      - name: Packages
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: |
+          chmod +x tools/net_probe
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DMULTITAP_WARNINGS_AS_ERRORS=ON -DMULTITAP_SANITIZE=${{ matrix.sanitize }} \
+            -DPICCOLINO_NET_PROBE="$PWD/tools/net_probe"
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: Windows (UCRT64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - run: git config --global core.autocrlf false
+        shell: pwsh
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          pacboy: >-
+            cc:p
+            cmake:p
+            ninja:p
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DMULTITAP_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
